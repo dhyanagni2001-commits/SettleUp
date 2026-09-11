@@ -2,7 +2,7 @@
 //  GroupListView.swift
 //  SplitWiseClone
 //
-
+import CoreData
 import SwiftUI
 
 struct GroupListView: View {
@@ -32,7 +32,7 @@ struct GroupListView: View {
             }
             .navigationTitle("Groups")
             .navigationDestination(for: ExpenseGroup.self) { group in
-                GroupDetailView(viewModel: GroupDetailViewModel(group: group))
+                GroupDetailView(viewModel: GroupDetailViewModel(group: group, context: viewModel.context))
             }
             .toolbar {
                 ToolbarItem(placement: .primaryAction) {

@@ -65,6 +65,26 @@ struct AddExpenseView: View {
             && Decimal(string: amountText) != nil
             && paidBy != nil
     }
+    
+    private struct ExpenseRow: View {
+        let expense: Expense
+
+        var body: some View {
+            HStack {
+                VStack(alignment: .leading) {
+                    Text(expense.title).font(.headline)
+                    Text("Paid by \(expense.paidBy.name) · \(expense.category.rawValue)")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Text(expense.date, format: .dateTime.month().day().hour().minute())
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
+                }
+                Spacer()
+                Text(expense.amount, format: .currency(code: expense.currencyCode))
+            }
+        }
+    }
 
     private func save() {
         guard let amount = Decimal(string: amountText), let paidBy else { return }

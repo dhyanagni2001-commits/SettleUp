@@ -17,7 +17,7 @@ final class GroupListViewModel: ObservableObject {
     @Published var isLoading = false
     @Published var errorMessage: String?
 
-    private let context: NSManagedObjectContext
+    let context: NSManagedObjectContext
     private var cancellables = Set<AnyCancellable>()
 
     init(context: NSManagedObjectContext) {
@@ -42,11 +42,6 @@ final class GroupListViewModel: ObservableObject {
         isLoading = true
         defer { isLoading = false }
 
-        // TODO: replace with a real NSFetchRequest<CDGroup> once the
-        // Core Data model + generated classes exist, then map each
-        // CDGroup -> ExpenseGroup. Left as a fetch-and-map function so
-        // the mapping logic (and this ViewModel's tests) don't depend
-        // on the store being populated.
         do {
             groups = try fetchGroups(in: context)
         } catch {
@@ -55,13 +50,42 @@ final class GroupListViewModel: ObservableObject {
     }
 
     func addGroup(name: String, memberNames: [String]) {
-        // TODO: create CDGroup + CDMember managed objects, save context,
-        // then call loadGroups() (or rely on the save notification).
+        let cdGroup = CDGroup(context: context)
+        cdGroup.id = UUID()
+        cdGroup.name = name
+        cdGroup.createdAt = Date()
+
+        for memberName in memberNames {
+            let cdMember = CDMember(context: context)
+            cdMember.id = UUID()
+            cdMember.name = memberName
+            cdMember.group = cdGroup
+        }
+
+        do {
+            try context.save()
+            loadGroups()
+        } catch {
+            errorMessage = "Couldn't create group: \(error.localizedDescription)"
+        }
     }
 
     private func fetchGroups(in context: NSManagedObjectContext) throws -> [ExpenseGroup] {
-        // Placeholder until Core Data entities exist — returns an empty
-        // list rather than throwing, so previews/tests don't crash.
-        return []
+        let request = CDGroup.fetchRequest()
+        request.sortDescriptors = [NSSortDescriptor(keyPath: \CDGroup.createdAt, ascending: false)]
+        let cdGroups = try context.fetch(request)
+
+        return cdGroups.map { cdGroup in
+            let members = (cdGroup.members as? Set<CDMember> ?? [])
+                .map { Member(id: $0.id ?? UUID(), name: $0.name ?? "") }
+                .sorted { $0.name < $1.name }
+
+            return ExpenseGroup(
+                id: cdGroup.id ?? UUID(),
+                name: cdGroup.name ?? "",
+                members: members,
+                expenses: [] // expenses mapping comes later, once GroupDetailViewModel needs it
+            )
+        }
     }
 }

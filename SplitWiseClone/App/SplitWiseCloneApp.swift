@@ -5,7 +5,7 @@
 //  App entry point. Wires up the Core Data + CloudKit persistence stack
 //  and injects the managed object context into the SwiftUI environment.
 //
-
+import CoreData
 import SwiftUI
 
 @main

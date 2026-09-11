@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<model type="com.apple.IDECoreDataModeler.DataModel" documentVersion="1.0" lastSavedToolsVersion="24902" systemVersion="25G83" minimumToolsVersion="Automatic" sourceLanguage="Swift" usedWithSwiftData="YES" userDefinedModelVersionIdentifier="">
+    <entity name="CDExpense" representedClassName=".CDExpense" syncable="YES" codeGenerationType="class">
+        <attribute name="amount" optional="YES" attributeType="Decimal" defaultValueString="0.0"/>
+        <attribute name="category" optional="YES" attributeType="String"/>
+        <attribute name="currencyCode" optional="YES" attributeType="String"/>
+        <attribute name="date" optional="YES" attributeType="Date" usesScalarValueType="NO"/>
+        <attribute name="id" optional="YES" attributeType="UUID" usesScalarValueType="NO"/>
+        <attribute name="title" optional="YES" attributeType="String"/>
+        <relationship name="group" optional="YES" maxCount="1" deletionRule="Nullify" destinationEntity="CDGroup" inverseName="expenses" inverseEntity="CDGroup"/>
+        <relationship name="paidBy" optional="YES" maxCount="1" deletionRule="Nullify" destinationEntity="CDMember" inverseName="paidExpenses" inverseEntity="CDMember"/>
+        <relationship name="splits" optional="YES" toMany="YES" deletionRule="Nullify" destinationEntity="CDExpenseSplit" inverseName="expense" inverseEntity="CDExpenseSplit"/>
+    </entity>
+    <entity name="CDExpenseSplit" representedClassName=".CDExpenseSplit" syncable="YES" codeGenerationType="class">
+        <attribute name="id" optional="YES" attributeType="UUID" usesScalarValueType="NO"/>
+        <attribute name="ownedAmount" optional="YES" attributeType="Decimal" defaultValueString="0.0"/>
+        <relationship name="expense" optional="YES" maxCount="1" deletionRule="Nullify" destinationEntity="CDExpense" inverseName="splits" inverseEntity="CDExpense"/>
+        <relationship name="member" optional="YES" maxCount="1" deletionRule="Nullify" destinationEntity="CDMember" inverseName="splits" inverseEntity="CDMember"/>
+    </entity>
+    <entity name="CDGroup" representedClassName=".CDGroup" syncable="YES" codeGenerationType="class">
+        <attribute name="createdAt" optional="YES" attributeType="Date" usesScalarValueType="NO"/>
+        <attribute name="id" optional="YES" attributeType="UUID" usesScalarValueType="NO"/>
+        <attribute name="name" optional="YES" attributeType="String"/>
+        <relationship name="expenses" optional="YES" toMany="YES" deletionRule="Nullify" destinationEntity="CDExpense" inverseName="group" inverseEntity="CDExpense"/>
+        <relationship name="members" optional="YES" toMany="YES" deletionRule="Nullify" destinationEntity="CDMember" inverseName="group" inverseEntity="CDMember"/>
+    </entity>
+    <entity name="CDMember" representedClassName=".CDMember" syncable="YES" codeGenerationType="class">
+        <attribute name="id" optional="YES" attributeType="UUID" usesScalarValueType="NO"/>
+        <attribute name="name" optional="YES" attributeType="String"/>
+        <relationship name="group" optional="YES" maxCount="1" deletionRule="Nullify" destinationEntity="CDGroup" inverseName="members" inverseEntity="CDGroup"/>
+        <relationship name="paidExpenses" optional="YES" toMany="YES" deletionRule="Nullify" destinationEntity="CDExpense" inverseName="paidBy" inverseEntity="CDExpense"/>
+        <relationship name="splits" optional="YES" toMany="YES" deletionRule="Nullify" destinationEntity="CDExpenseSplit" inverseName="member" inverseEntity="CDExpenseSplit"/>
+    </entity>
+    <entity name="CDSettlement" representedClassName=".CDSettlement" syncable="YES" codeGenerationType="class">
+        <attribute name="amount" optional="YES" attributeType="Decimal" defaultValueString="0.0"/>
+        <attribute name="currencyCode" optional="YES" attributeType="String"/>
+        <attribute name="id" optional="YES" attributeType="UUID" usesScalarValueType="NO"/>
+        <relationship name="from" optional="YES" maxCount="1" deletionRule="Nullify" destinationEntity="CDMember"/>
+        <relationship name="to" optional="YES" maxCount="1" deletionRule="Nullify" destinationEntity="CDMember"/>
+    </entity>
+</model>
