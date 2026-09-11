@@ -38,14 +38,21 @@ properties; Combine pipelines react to Core Data's remote-change
 notifications so the UI updates automatically when CloudKit sync brings in
 changes from another device.
 
+Core Data entities are prefixed `CD` (`CDGroup`, `CDMember`, `CDExpense`,
+`CDExpenseSplit`, `CDSettlement`) to avoid colliding with the plain Swift
+domain structs of the same name in `Models/DomainModels.swift`.
+
 ## Core Data + CloudKit
 
 Persistence uses `NSPersistentCloudKitContainer`. The local SQLite store is
 always the source of truth — every read/write hits it first — so the app is
 fully usable offline. CloudKit sync catches up in the background whenever
-connectivity returns. See [`SplitWiseClone/Persistence/CoreDataModel.md`](SplitWiseClone/Persistence/CoreDataModel.md)
-for the entity schema (the `.xcdatamodeld` file itself has to be created in
-Xcode's model editor — it's not a plain-text format).
+connectivity returns. The `.xcdatamodeld` is checked in at
+`SplitWiseClone/Persistence/SplitWiseClone.xcdatamodeld`.
+
+Known typo to be aware of: `CDExpenseSplit`'s amount field is named
+`ownedAmount` (not `owedAmount`) in the schema — code that reads/writes it
+uses the field as spelled.
 
 ## On-device ML
 
@@ -75,18 +82,11 @@ isolation cases.
 
 ## Setup
 
-1. Clone the repo and open it in Xcode (a `.xcodeproj` isn't checked in yet —
-   create a new iOS App project named `SplitWiseClone` and drag these folders
-   in, or generate the project with `xcodegen`/`tuist` using the structure
-   above).
-2. In Xcode: **File → New → File → Data Model**, name it `SplitWiseClone`,
-   and add the entities described in `CoreDataModel.md`. Check "Used with
-   CloudKit" on each entity.
-3. Enable the **iCloud** capability with **CloudKit** checked, and the
-   **Background Modes → Remote notifications** capability (required for
-   `NSPersistentCloudKitContainer` sync).
-4. Build and run. The app works fully offline even before CloudKit is fully
-   configured — sync just won't do anything until entitlements are in place.
+1. Clone the repo and open `SplitWiseClone.xcodeproj` in Xcode.
+2. Select an iOS Simulator as the run destination (not "My Mac" — several
+   view modifiers are iOS-only).
+3. Build and run. The app works fully offline even before CloudKit
+   entitlements are configured — sync just won't do anything until they are.
 
 ## Testing
 
@@ -102,10 +102,18 @@ group, and multi-currency isolation.
 
 ## Status / TODOs
 
-- [ ] Create the `.xcdatamodeld` in Xcode and wire real `NSFetchRequest`s
-      into `GroupListViewModel`/`GroupDetailViewModel` (currently stubbed).
+- [x] `.xcdatamodeld` created; `GroupListViewModel`/`GroupDetailViewModel`
+      wired to real `NSFetchRequest`s and saves.
+- [x] Create group, add expense, compute balances/settlements, mark settled
+      all persist to Core Data.
+- [ ] `settledAt` timestamp on `CDSettlement` — attribute not added yet, so
+      settlement history has no recorded time.
+- [ ] Settled debts can reappear in the settle-up list after new expenses
+      are added, since balances are recomputed from raw expenses without
+      checking prior settlements yet.
 - [ ] Train and drop in the CreateML expense-category `.mlmodel`.
 - [ ] Custom (non-equal) split entry in `AddExpenseView`.
+- [ ] Login / auth — not started, no user model exists yet.
 - [ ] UI tests.
 - [ ] App icon / launch screen.
 
