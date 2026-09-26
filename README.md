@@ -1,4 +1,4 @@
-# SplitWise Clone — Native iOS Expense Splitting App
+# SettleUp — Native iOS Expense Splitting App
 
 A native iOS expense-splitting app built with **SwiftUI**, **MVVM + Combine**,
 **Core Data + CloudKit sync**, and an on-device **CoreML** classifier for
