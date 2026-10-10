@@ -14,6 +14,10 @@ struct ExpenseGroup: Identifiable, Hashable {
     var name: String
     var members: [Member]
     var expenses: [Expense]
+    /// Payments already recorded via "Settle up"; they offset balances.
+    var payments: [Settlement] = []
+
+    var totalSpent: Decimal { expenses.reduce(0) { $0 + $1.amount } }
 }
 
 struct Member: Identifiable, Hashable {
@@ -57,4 +61,15 @@ struct Settlement: Identifiable, Hashable {
     var to: Member
     var amount: Decimal
     var currencyCode: String
+    var date: Date = Date()
+
+    /// Stable identity for animations (simplifier output gets fresh UUIDs on every recompute).
+    var pairKey: String { "\(from.id)-\(to.id)-\(currencyCode)" }
+}
+
+/// One member's net position within a group. Positive = is owed money.
+struct MemberBalance: Identifiable, Equatable {
+    let member: Member
+    let amount: Decimal
+    var id: UUID { member.id }
 }

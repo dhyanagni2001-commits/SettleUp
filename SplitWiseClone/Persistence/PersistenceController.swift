@@ -17,7 +17,26 @@ final class PersistenceController {
     /// In-memory store used by SwiftUI previews and unit tests.
     static var preview: PersistenceController = {
         let controller = PersistenceController(inMemory: true)
-        // TODO: seed sample Group / Member / Expense records here for previews
+        let context = controller.container.viewContext
+        let group = CDGroup(context: context)
+        group.id = UUID(); group.name = "Lisbon Trip"; group.createdAt = Date()
+        let members = ["Dhyan", "Alex", "Priya"].map { name in
+            let member = CDMember(context: context)
+            member.id = UUID(); member.name = name; member.group = group
+            return member
+        }
+        for (title, amount, payer) in [("Airbnb", 450, 0), ("Dinner at Time Out", 96, 1), ("Uber to airport", 39, 2)] {
+            let expense = CDExpense(context: context)
+            expense.id = UUID(); expense.title = title; expense.amount = NSDecimalNumber(value: amount)
+            expense.currencyCode = "USD"; expense.date = Date(); expense.group = group; expense.paidBy = members[payer]
+            expense.category = ExpenseCategorizer().categorize(title: title).rawValue
+            for member in members {
+                let split = CDExpenseSplit(context: context)
+                split.id = UUID(); split.ownedAmount = NSDecimalNumber(value: Double(amount) / 3)
+                split.expense = expense; split.member = member
+            }
+        }
+        try? context.save()
         return controller
     }()
 

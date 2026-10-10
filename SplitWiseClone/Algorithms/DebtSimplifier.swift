@@ -108,6 +108,35 @@ enum DebtSimplifier {
         return results
     }
 
+    /// Models a recorded payment as an expense paid by `from` and owed entirely
+    /// by `to`, so it can be folded into the same ledger as regular expenses.
+    static func ledgerEntry(for payment: Settlement) -> Expense {
+        Expense(
+            id: payment.id, title: "Payment", amount: payment.amount,
+            currencyCode: payment.currencyCode, category: .other, paidBy: payment.from,
+            splits: [ExpenseSplit(id: payment.id, member: payment.to, owedAmount: payment.amount)],
+            date: payment.date
+        )
+    }
+
+    /// Splits `amount` equally across `members` to the cent; leftover cents go
+    /// to the first members so the splits always sum exactly to `amount`.
+    static func equalSplits(of amount: Decimal, among members: [Member]) -> [ExpenseSplit] {
+        guard !members.isEmpty else { return [] }
+        let cents = NSDecimalNumber(decimal: round(amount * 100, scale: 0)).intValue
+        let base = cents / members.count, extra = cents % members.count
+        return members.enumerated().map { index, member in
+            ExpenseSplit(id: UUID(), member: member, owedAmount: Decimal(base + (index < extra ? 1 : 0)) / 100)
+        }
+    }
+
+    private static func round(_ value: Decimal, scale: Int) -> Decimal {
+        var result = Decimal()
+        var mutableValue = value
+        NSDecimalRound(&result, &mutableValue, scale, .plain)
+        return result
+    }
+
     private static func round(_ value: Decimal) -> Decimal {
         var result = Decimal()
         var mutableValue = value

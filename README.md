@@ -120,3 +120,20 @@ group, and multi-currency isolation.
 ## License
 
 MIT
+
+## Benchmarks
+
+Measured by `SplitWiseCloneTests/DebtSimplifierBenchmarkTests.swift`
+(seeded, reproducible; iPhone 17 Pro simulator, iOS 26.5):
+
+| Metric | Result |
+|---|---|
+| Random groups simulated (3–12 members, 5–60 expenses) | 1,000 |
+| Payments needed: pairwise-netted vs. simplified | 26,217 → 6,438 (**75.4% fewer**) |
+| Avg payments per group | 26.2 → 6.4 |
+| Groups fully zeroed after applying the plan | 1,000 / 1,000 (0¢ residual) |
+| Equal splits summing exactly to the cent | 10,000 / 10,000 |
+| 50 members × 5,000 expenses simplify time | ~58 ms median |
+
+Run them with `xcodebuild test -scheme SplitWiseClone -destination 'platform=iOS Simulator,name=iPhone 17 Pro'`;
+results print as `METRIC …` lines in the test log.

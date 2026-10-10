@@ -2,9 +2,8 @@
 //  GroupListViewModel.swift
 //  SplitWiseClone
 //
-//  Loads and publishes the list of expense groups. Uses a Combine
-//  publisher over an NSFetchRequest so the list stays live as
-//  CloudKit syncs remote changes down to the local store.
+//  Loads and publishes the list of expense groups. Re-fetches whenever the
+//  view context saves or CloudKit syncs remote changes down to the local store.
 //
 
 import Combine
@@ -14,36 +13,37 @@ import Foundation
 @MainActor
 final class GroupListViewModel: ObservableObject {
     @Published private(set) var groups: [ExpenseGroup] = []
-    @Published var isLoading = false
     @Published var errorMessage: String?
+    /// False until the first fetch lands; drives the skeleton placeholder.
+    @Published private(set) var hasLoaded = false
 
     let context: NSManagedObjectContext
     private var cancellables = Set<AnyCancellable>()
 
     init(context: NSManagedObjectContext) {
         self.context = context
-        observeRemoteChanges()
-        loadGroups()
-    }
+        Publishers.Merge(
+            NotificationCenter.default.publisher(for: .NSPersistentStoreRemoteChange),
+            NotificationCenter.default.publisher(for: .NSManagedObjectContextDidSave, object: context)
+        )
+        .receive(on: DispatchQueue.main)
+        .sink { [weak self] _ in self?.loadGroups() }
+        .store(in: &cancellables)
 
-    /// Re-fetch whenever Core Data reports a remote (CloudKit) change,
-    /// so groups edited on another device show up here automatically.
-    private func observeRemoteChanges() {
-        NotificationCenter.default
-            .publisher(for: .NSPersistentStoreRemoteChange)
-            .receive(on: DispatchQueue.main)
-            .sink { [weak self] _ in
-                self?.loadGroups()
-            }
-            .store(in: &cancellables)
+        // Short beat on cold start so the skeleton → content handoff animates
+        // instead of flashing (and covers the CloudKit store warming up).
+        Task {
+            try? await Task.sleep(for: .milliseconds(650))
+            loadGroups()
+            hasLoaded = true
+        }
     }
 
     func loadGroups() {
-        isLoading = true
-        defer { isLoading = false }
-
+        let request = CDGroup.fetchRequest()
+        request.sortDescriptors = [NSSortDescriptor(keyPath: \CDGroup.createdAt, ascending: false)]
         do {
-            groups = try fetchGroups(in: context)
+            groups = try context.fetch(request).map(\.domain)
         } catch {
             errorMessage = "Couldn't load groups: \(error.localizedDescription)"
         }
@@ -61,31 +61,21 @@ final class GroupListViewModel: ObservableObject {
             cdMember.name = memberName
             cdMember.group = cdGroup
         }
-
-        do {
-            try context.save()
-            loadGroups()
-        } catch {
-            errorMessage = "Couldn't create group: \(error.localizedDescription)"
-        }
+        save("create group")
     }
 
-    private func fetchGroups(in context: NSManagedObjectContext) throws -> [ExpenseGroup] {
-        let request = CDGroup.fetchRequest()
-        request.sortDescriptors = [NSSortDescriptor(keyPath: \CDGroup.createdAt, ascending: false)]
-        let cdGroups = try context.fetch(request)
+    func deleteGroup(_ group: ExpenseGroup) {
+        guard let cdGroup = try? context.fetchOne(CDGroup.self, id: group.id) else { return }
+        context.delete(cdGroup)
+        save("delete group")
+    }
 
-        return cdGroups.map { cdGroup in
-            let members = (cdGroup.members as? Set<CDMember> ?? [])
-                .map { Member(id: $0.id ?? UUID(), name: $0.name ?? "") }
-                .sorted { $0.name < $1.name }
-
-            return ExpenseGroup(
-                id: cdGroup.id ?? UUID(),
-                name: cdGroup.name ?? "",
-                members: members,
-                expenses: [] // expenses mapping comes later, once GroupDetailViewModel needs it
-            )
+    private func save(_ action: String) {
+        do {
+            try context.save()
+        } catch {
+            context.rollback()
+            errorMessage = "Couldn't \(action): \(error.localizedDescription)"
         }
     }
 }
