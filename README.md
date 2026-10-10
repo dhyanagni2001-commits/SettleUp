@@ -7,6 +7,41 @@ automatic expense categorization. The core algorithmic piece is a
 collapses a group's tangled IOUs down to the smallest set of payments needed
 to settle up.
 
+<p align="center">
+  <img src="docs/screenshots/groups.png" width="19%" alt="Groups list">
+  <img src="docs/screenshots/group-detail.png" width="19%" alt="Group detail with settle-up plan">
+  <img src="docs/screenshots/balances-expenses.png" width="19%" alt="Balances and expenses">
+  <img src="docs/screenshots/add-expense.png" width="19%" alt="Add expense with auto-categorization">
+  <img src="docs/screenshots/settled.png" width="19%" alt="All settled up">
+</p>
+
+## Highlights
+
+| | |
+|---|---|
+| **75.4% fewer payments** | 26,217 → 6,438 transfers across 1,000 simulated groups |
+| **100% correct** | 1,000 / 1,000 groups zeroed to the cent; 10,000 / 10,000 splits exact |
+| **~53 ms** | Settlement plan for 50 members × 5,000 expenses |
+| **13 / 13 tests passing** | Unit, randomized benchmark, and end-to-end UI tests |
+| **~2,000 lines of Swift** | App + tests, zero third-party dependencies |
+
+## Features
+
+- **Groups & members**: create groups, add members, long-press to delete.
+- **Expenses**: equal splits among any subset of members, exact to the cent
+  (leftover cents are distributed so splits always sum to the total).
+- **Live auto-categorization**: the category icon updates as you type the title
+  (keyword heuristic today; CoreML model slot ready).
+- **Settle up**: minimal payment plan; recorded payments are persisted and
+  offset balances, so settled debts never reappear.
+- **Offline-first sync**: Core Data is the source of truth, with CloudKit
+  mirroring via `NSPersistentCloudKitContainer`.
+- **Spotify-inspired UI**: near-black theme, green accent, playlist-style
+  header that picks up the group's color.
+- **Motion**: shimmer skeleton on load, staggered entrances, scroll-driven
+  reveal (scale/tilt/blur), zoom transition into a group, spring-animated
+  balance bars, rolling numbers, confetti and haptics on settle.
+
 ## Why this exists
 
 Splitting expenses in a group (a trip, a shared apartment, a dinner) quickly
@@ -26,10 +61,10 @@ SplitWiseClone/
 ├── Persistence/           Core Data + CloudKit stack
 ├── ML/                    On-device CoreML expense categorizer
 ├── Algorithms/            DebtSimplifier — the min-transaction reduction engine
-└── Extensions/            Small Swift extensions
+└── Extensions/            Theme (palette, avatars) and Effects (animations)
 
-SplitWiseCloneTests/       XCTest unit tests (algorithm, categorizer)
-SplitWiseCloneUITests/     UI test target (scaffolded, empty for now)
+SplitWiseCloneTests/       XCTest unit + benchmark tests (algorithm, categorizer)
+SplitWiseCloneUITests/     End-to-end UI test (create → add expense → settle)
 ```
 
 **Pattern:** MVVM. Views are declarative SwiftUI and hold no business logic;
@@ -74,9 +109,9 @@ isolation cases.
 
 ## Requirements
 
-- Xcode 15+
-- iOS 17+ deployment target (uses `NavigationStack`, `ContentUnavailableView`,
-  `onChange(of:)` two-parameter closure API)
+- Xcode 26+ (Xcode 27 runs simulators in **DeviceHub**, which replaced Simulator.app)
+- iOS 26.5 deployment target (uses `NavigationStack` zoom transitions,
+  `scrollTransition`, `phaseAnimator`, `symbolEffect`, `sensoryFeedback`)
 - An Apple Developer account with iCloud/CloudKit capability enabled if you
   want to test sync (not required to build/run locally)
 
@@ -87,18 +122,25 @@ isolation cases.
    view modifiers are iOS-only).
 3. Build and run. The app works fully offline even before CloudKit
    entitlements are configured — sync just won't do anything until they are.
+4. Optional: add `-demoData` under *Edit Scheme → Run → Arguments* to launch
+   with a seeded "Lisbon Trip" group in an in-memory store.
 
 ## Testing
 
 ```bash
 xcodebuild test \
   -scheme SplitWiseClone \
-  -destination 'platform=iOS Simulator,name=iPhone 15'
+  -destination 'platform=iOS Simulator,name=iPhone 17 Pro'
 ```
 
-Or `Cmd+U` in Xcode. `DebtSimplifierTests` is the one worth reading first —
-it covers the core reduction logic, rounding to cents, an already-settled
-group, and multi-currency isolation.
+Or `Cmd+U` in Xcode. 13 tests across three suites:
+
+- `DebtSimplifierTests`: core reduction logic, rounding to cents, an
+  already-settled group, multi-currency isolation.
+- `DebtSimplifierBenchmarkTests`: seeded randomized simulations (see
+  [Benchmarks](#benchmarks)).
+- `ExpenseCategorizerTests` and `SplitWiseCloneUITests`: the UI test drives the
+  full flow (create group → add expense → settle → "All settled up").
 
 ## Status / TODOs
 
@@ -106,16 +148,17 @@ group, and multi-currency isolation.
       wired to real `NSFetchRequest`s and saves.
 - [x] Create group, add expense, compute balances/settlements, mark settled
       all persist to Core Data.
-- [ ] `settledAt` timestamp on `CDSettlement` — attribute not added yet, so
-      settlement history has no recorded time.
-- [ ] Settled debts can reappear in the settle-up list after new expenses
-      are added, since balances are recomputed from raw expenses without
-      checking prior settlements yet.
+- [x] `CDSettlement.date` records when a payment was made.
+- [x] Recorded payments are folded into the ledger, so settled debts don't
+      reappear after new expenses are added.
+- [x] UI tests (end-to-end create → add → settle flow).
+- [x] App icon, animated Spotify-style UI.
+- [x] Delete groups and expenses (cascade deletes in the model).
 - [ ] Train and drop in the CreateML expense-category `.mlmodel`.
 - [ ] Custom (non-equal) split entry in `AddExpenseView`.
 - [ ] Login / auth — not started, no user model exists yet.
-- [ ] UI tests.
-- [ ] App icon / launch screen.
+- [ ] Launch screen.
+- [ ] Settlement history view.
 
 ## License
 
@@ -129,11 +172,12 @@ Measured by `SplitWiseCloneTests/DebtSimplifierBenchmarkTests.swift`
 | Metric | Result |
 |---|---|
 | Random groups simulated (3–12 members, 5–60 expenses) | 1,000 |
+| Max payments in any plan | ≤ n − 1 for every group (asserted) |
 | Payments needed: pairwise-netted vs. simplified | 26,217 → 6,438 (**75.4% fewer**) |
 | Avg payments per group | 26.2 → 6.4 |
 | Groups fully zeroed after applying the plan | 1,000 / 1,000 (0¢ residual) |
 | Equal splits summing exactly to the cent | 10,000 / 10,000 |
-| 50 members × 5,000 expenses simplify time | ~58 ms median |
+| 50 members × 5,000 expenses simplify time | ~53–58 ms median (varies by run) |
 
 Run them with `xcodebuild test -scheme SplitWiseClone -destination 'platform=iOS Simulator,name=iPhone 17 Pro'`;
 results print as `METRIC …` lines in the test log.
