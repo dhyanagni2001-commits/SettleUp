@@ -3,7 +3,7 @@
 
 Titles are composed from per-category vocabularies (items, merchants, and
 phrasing people actually type into a splitting app), with a fixed seed so the
-CSV is reproducible. The hand-written evaluation set (evaluation.csv) is kept
+CSV is reproducible. The hand-written evaluation set (SplitWiseCloneTests/evaluation.csv) is kept
 separate and shares no templates with this generator.
 
     python3 TrainingData/generate_dataset.py

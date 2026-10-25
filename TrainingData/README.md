@@ -6,8 +6,8 @@ the on-device Core ML model that suggests a category from an expense title.
 | File | What it is |
 |---|---|
 | `generate_dataset.py` | Builds `expense_categories.csv` (~7,900 titles) from per-category items and merchants. Seeded, so it's reproducible. Every category shares the same phrasing templates, so filler words like "for the group" carry no signal. |
-| `expense_categories.csv` | Generated training data: `text`, `label` (an `ExpenseCategory` raw value). |
-| `evaluation.csv` | 84 hand-written titles (12 per category) that share no templates with the generator. Used only to score models, never to train. |
+| `expense_categories.csv` | Generated training data (git-ignored; rerun the script): `text`, `label` (an `ExpenseCategory` raw value). |
+| `../SplitWiseCloneTests/evaluation.csv` | 84 hand-written titles (12 per category) that share no templates with the generator. Used only to score models, never to train. |
 | `train.swift` | Trains two Create ML text classifiers (maxEnt and ELMo transfer learning), scores both on `evaluation.csv`, and writes the better one into `SplitWiseClone/ML/`. |
 
 ## Rebuild the model

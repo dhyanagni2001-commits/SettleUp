@@ -3,8 +3,9 @@
 //  SplitWiseCloneTests
 //
 //  Checks the bundled Core ML model loads and scores it on the hand-written
-//  held-out set in TrainingData/evaluation.csv (no overlap with the
-//  generated training data). Prints METRIC lines for the README.
+//  held-out set in evaluation.csv (no overlap with the generated training
+//  data). The CSV lives next to this file so it's bundled with the tests and
+//  they run on a real iPhone too. Prints METRIC lines for the README.
 //
 
 import XCTest
@@ -15,8 +16,7 @@ final class ExpenseCategorizerTests: XCTestCase {
     private let categorizer = ExpenseCategorizer()
 
     private func evaluationRows() throws -> [(title: String, category: ExpenseCategory)] {
-        let url = URL(filePath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
-            .appending(path: "TrainingData/evaluation.csv")
+        let url = try XCTUnwrap(Bundle(for: Self.self).url(forResource: "evaluation", withExtension: "csv"))
         return try String(contentsOf: url, encoding: .utf8).split(separator: "\n").dropFirst().compactMap { line in
             guard let comma = line.lastIndex(of: ","),
                   let category = ExpenseCategory(rawValue: String(line[line.index(after: comma)...]))

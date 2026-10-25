@@ -4,7 +4,8 @@
 //   python3 TrainingData/generate_dataset.py
 //   swift TrainingData/train.swift
 //
-// Two algorithms are trained and scored on evaluation.csv, which is
+// Two algorithms are trained and scored on SplitWiseCloneTests/evaluation.csv
+// (kept there so the unit tests bundle it), which is
 // hand-written and shares no phrasing with the generated training set; the
 // better one is kept. Run from the repo root.
 
@@ -14,7 +15,7 @@ import NaturalLanguage
 
 let root = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
 let trainingURL = root.appending(path: "TrainingData/expense_categories.csv")
-let evaluationURL = root.appending(path: "TrainingData/evaluation.csv")
+let evaluationURL = root.appending(path: "SplitWiseCloneTests/evaluation.csv")
 let outputURL = root.appending(path: "SplitWiseClone/ML/ExpenseCategoryClassifier.mlmodel")
 
 let training = try MLDataTable(contentsOf: trainingURL)
