@@ -24,39 +24,53 @@ final class PersistenceController {
     static let isTesting = ProcessInfo.processInfo.arguments.contains("-uiTesting")
         || ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
 
-    /// The stack this launch should use. Tests get a clean in-memory store;
-    /// -demoData launches with the seeded preview store. App Intents read
-    /// this too, so Siri writes land in the same store as the UI.
+    /// The stack this launch should use. -demoData launches with the seeded
+    /// in-memory preview store (UI tests use it for README screenshots);
+    /// other tests get a clean in-memory store. App Intents read this too, so
+    /// Siri writes land in the same store as the UI.
     static let current: PersistenceController = {
+        if ProcessInfo.processInfo.arguments.contains("-demoData") { return .preview }
         if isTesting { return PersistenceController(inMemory: true) }
-        let arguments = ProcessInfo.processInfo.arguments
-        if arguments.contains("-demoData") { return .preview }
         return .shared
     }()
 
-    /// In-memory store used by SwiftUI previews and unit tests.
+    /// In-memory store seeded with a few realistic groups, for SwiftUI
+    /// previews, -demoData, and screenshots. Categories come from the Core ML
+    /// categorizer, the same as typed expenses.
     static var preview: PersistenceController = {
         let controller = PersistenceController(inMemory: true)
-        let context = controller.container.viewContext
-        let group = CDGroup(context: context)
-        group.id = UUID(); group.name = "Lisbon Trip"; group.createdAt = Date()
-        let members = ["Dhyan", "Alex", "Priya"].map { name in
-            let member = CDMember(context: context)
-            member.id = UUID(); member.name = name; member.group = group
-            return member
-        }
-        for (title, amount, payer) in [("Airbnb", 450, 0), ("Dinner at Time Out", 96, 1), ("Uber to airport", 39, 2)] {
-            let expense = CDExpense(context: context)
-            expense.id = UUID(); expense.title = title; expense.amount = NSDecimalNumber(value: amount)
-            expense.currencyCode = "USD"; expense.date = Date(); expense.group = group; expense.paidBy = members[payer]
-            expense.category = ExpenseCategorizer().categorize(title: title).rawValue
-            for split in DebtSimplifier.equalSplits(of: Decimal(amount), among: members.map(\.domain)) {
-                let cdSplit = CDExpenseSplit(context: context)
-                cdSplit.id = split.id; cdSplit.ownedAmount = split.owedAmount as NSDecimalNumber
-                cdSplit.expense = expense; cdSplit.member = members.first { $0.id == split.member.id }
+        let repository = ExpenseRepository(context: controller.container.viewContext, persistence: controller)
+        let categorizer = ExpenseCategorizer()
+        let calendar = Calendar.current
+
+        // Created oldest first so the newest group is listed on top.
+        let seeds: [(name: String, members: [String], expenses: [(String, Decimal, Int, Int)])] = [
+            ("Ski Weekend", ["Dhyan", "Alex"], [
+                ("Chalet in Chamonix", 600, 1, 9), ("Lift tickets", 180, 0, 8),
+            ]),
+            ("Flat 4B", ["Dhyan", "Sam", "Priya"], [
+                ("Electricity bill", 120, 1, 6), ("Costco run", 210, 0, 4), ("Wifi", 45, 2, 3),
+            ]),
+            ("Lisbon Trip", ["Dhyan", "Maya", "Ravi"], [
+                ("Airbnb in Alfama", 450, 0, 3), ("Dinner at Time Out Market", 96, 1, 2),
+                ("Uber to the airport", 39, 2, 2), ("Fado show tickets", 75, 1, 1), ("Pastries and coffee", 18, 0, 0),
+            ]),
+        ]
+        for seed in seeds {
+            guard let groupID = try? repository.createGroup(name: seed.name, memberNames: seed.members, me: nil),
+                  let group = try? repository.group(id: groupID)
+            else { continue }
+            let members = seed.members.compactMap { name in group.members.first { $0.name == name } }
+            for (title, amount, payer, daysAgo) in seed.expenses {
+                let expense = Expense(
+                    id: UUID(), title: title, amount: amount, currencyCode: "USD",
+                    category: categorizer.categorize(title: title), paidBy: members[payer],
+                    splits: DebtSimplifier.equalSplits(of: amount, among: members),
+                    date: calendar.date(byAdding: .day, value: -daysAgo, to: .now) ?? .now
+                )
+                try? repository.save(expense, in: groupID)
             }
         }
-        try? context.save()
         return controller
     }()
 
@@ -78,6 +92,12 @@ final class PersistenceController {
 
         if inMemory {
             privateDescription.url = URL(fileURLWithPath: "/dev/null")
+            privateDescription.cloudKitContainerOptions = nil
+        } else if !AppFeatures.cloud {
+            // Free build: a plain local store. History tracking stays on so
+            // turning CloudKit on later can mirror everything already saved.
+            privateDescription.setOption(true as NSNumber, forKey: NSPersistentHistoryTrackingKey)
+            privateDescription.setOption(true as NSNumber, forKey: NSPersistentStoreRemoteChangeNotificationPostOptionKey)
             privateDescription.cloudKitContainerOptions = nil
         } else {
             // History tracking + remote change notifications are required for
@@ -106,7 +126,7 @@ final class PersistenceController {
         }
 
         let stores = container.persistentStoreCoordinator.persistentStores
-        sharedStore = inMemory ? nil : stores.first { $0.url?.lastPathComponent == Self.sharedStoreFileName }
+        sharedStore = inMemory || !AppFeatures.cloud ? nil : stores.first { $0.url?.lastPathComponent == Self.sharedStoreFileName }
         privateStore = stores.first { $0 !== sharedStore }
 
         container.viewContext.automaticallyMergesChangesFromParent = true

@@ -46,26 +46,36 @@ struct WelcomeView: View {
             Spacer()
 
             VStack(spacing: 14) {
-                SignInWithAppleButton(.signIn) { request in
-                    request.requestedScopes = [.fullName, .email]
-                } onCompletion: { result in
-                    signIn(result)
+                if AppFeatures.cloud {
+                    SignInWithAppleButton(.signIn) { request in
+                        request.requestedScopes = [.fullName, .email]
+                    } onCompletion: { result in
+                        signIn(result)
+                    }
+                    .signInWithAppleButtonStyle(.white)
+                    .frame(height: 54)
+                    .clipShape(Capsule())
+                    .rise(appeared, delay: 0.26)
+
+                    Button("Continue as Guest") { account.continueAsGuest() }
+                        .font(.headline)
+                        .foregroundStyle(.white)
+                        .frame(maxWidth: .infinity, minHeight: 54)
+                        .background(Capsule().stroke(Color.white.opacity(0.25), lineWidth: 1))
+                        .contentShape(Capsule())
+                        .buttonStyle(PressableStyle())
+                        .accessibilityIdentifier("startButton")
+                        .rise(appeared, delay: 0.32)
+                } else {
+                    Button { account.continueAsGuest() } label: {
+                        Text("Get Started").frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(BrandButtonStyle())
+                    .accessibilityIdentifier("startButton")
+                    .rise(appeared, delay: 0.26)
                 }
-                .signInWithAppleButtonStyle(.white)
-                .frame(height: 54)
-                .clipShape(Capsule())
-                .rise(appeared, delay: 0.26)
 
-                Button("Continue as Guest") { account.continueAsGuest() }
-                    .font(.headline)
-                    .foregroundStyle(.white)
-                    .frame(maxWidth: .infinity, minHeight: 54)
-                    .background(Capsule().stroke(Color.white.opacity(0.25), lineWidth: 1))
-                    .contentShape(Capsule())
-                    .buttonStyle(PressableStyle())
-                    .rise(appeared, delay: 0.32)
-
-                Text("Guests keep their groups when they sign in later.")
+                Text(AppFeatures.cloud ? "Guests keep their groups when they sign in later." : "Your groups stay private on this iPhone.")
                     .font(.footnote)
                     .foregroundStyle(Color.subtext)
                     .rise(appeared, delay: 0.38)

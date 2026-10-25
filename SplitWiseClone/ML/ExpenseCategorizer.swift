@@ -2,48 +2,57 @@
 //  ExpenseCategorizer.swift
 //  SplitWiseClone
 //
-//  Wraps an on-device CoreML text classifier (trained with Apple
-//  CreateML on a small labeled dataset of expense titles -> category)
-//  so category suggestions never leave the device.
+//  Suggests a category for an expense title with an on-device Core ML text
+//  classifier (ExpenseCategoryClassifier.mlmodel, trained with Create ML by
+//  TrainingData/train.swift). Nothing leaves the device.
 //
-//  TODO: train the actual model.
-//    1. Build a CSV with two columns: `text` (expense title, e.g.
-//       "Uber to airport") and `label` (an ExpenseCategory rawValue).
-//    2. Open Create ML.app -> new Text Classifier project -> import
-//       the CSV -> train -> export as ExpenseCategoryClassifier.mlmodel.
-//    3. Drag the .mlmodel into the Xcode project (this ML/ folder);
-//       Xcode auto-generates a Swift class with the same name.
+//  The model is only trusted when it's confident; titles it hasn't seen
+//  anything like (e.g. a shop name) fall back to a keyword heuristic, and
+//  then to "Other", rather than a confident-looking wrong guess.
 //
 
 import CoreML
 import Foundation
-
-enum CategorizerError: Error {
-    case modelUnavailable
-}
+import NaturalLanguage
 
 final class ExpenseCategorizer {
+    /// Below this probability the model's guess isn't used. Seven categories
+    /// make a blind guess ~14%, so 0.3 filters gibberish while keeping nearly
+    /// all of the model's accuracy (see ExpenseCategorizerTests' METRIC lines).
+    static let confidenceThreshold = 0.3
 
-    /// Set to `false` in DEBUG until the trained .mlmodel is added to the
-    /// project, so the rest of the app can build and run against the
-    /// keyword fallback below.
-    private let modelIsAvailable = false
+    /// Loaded once and shared; nil if the compiled model is missing from the bundle.
+    private static let model: NLModel? = {
+        guard let url = Bundle.main.url(forResource: "ExpenseCategoryClassifier", withExtension: "mlmodelc"),
+              let mlModel = try? MLModel(contentsOf: url)
+        else { return nil }
+        return try? NLModel(mlModel: mlModel)
+    }()
+
+    var isModelAvailable: Bool { Self.model != nil }
 
     /// Returns a best-guess category for a freeform expense title.
-    /// Runs entirely on-device — no network call, no data leaves the phone.
     func categorize(title: String) -> ExpenseCategory {
-        if modelIsAvailable {
-            // TODO: replace with real inference once the model is added, e.g.:
-            //   let model = try ExpenseCategoryClassifier(configuration: MLModelConfiguration())
-            //   let prediction = try model.prediction(text: title)
-            //   return ExpenseCategory(rawValue: prediction.label) ?? .other
+        let title = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !title.isEmpty else { return .other }
+        if let guess = prediction(for: title), guess.confidence >= Self.confidenceThreshold {
+            return guess.category
         }
         return keywordFallback(for: title)
     }
 
-    /// Simple keyword heuristic used until the CreateML model is trained,
-    /// and as a safety-net fallback if inference ever fails.
-    private func keywordFallback(for title: String) -> ExpenseCategory {
+    /// The model's top category and its probability, if the model is available.
+    func prediction(for title: String) -> (category: ExpenseCategory, confidence: Double)? {
+        guard let model = Self.model,
+              let (label, confidence) = model.predictedLabelHypotheses(for: title, maximumCount: 1).max(by: { $0.value < $1.value }),
+              let category = ExpenseCategory(rawValue: label)
+        else { return nil }
+        return (category, confidence)
+    }
+
+    /// Simple keyword heuristic for titles the model is unsure about, and a
+    /// safety net if the model can't be loaded.
+    func keywordFallback(for title: String) -> ExpenseCategory {
         let lowercased = title.lowercased()
 
         let keywordMap: [(keywords: [String], category: ExpenseCategory)] = [

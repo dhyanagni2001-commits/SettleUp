@@ -35,7 +35,7 @@ struct AccountView: View {
                                 ProfileAvatarImage(name: displayName, image: avatar, size: 92)
                             }
                             .accessibilityLabel("Change profile photo")
-                            Text(isGuest ? "Guest" : "Signed in with Apple")
+                            Text(!AppFeatures.cloud ? "Saved on this iPhone" : isGuest ? "Guest" : "Signed in with Apple")
                                 .font(.footnote.weight(.semibold))
                                 .foregroundStyle(Color.subtext)
                             if let email = account.profile?.email {
@@ -56,7 +56,7 @@ struct AccountView: View {
                     }
                 }
 
-                if isGuest {
+                if isGuest && AppFeatures.cloud {
                     Section {
                         SignInWithAppleButton(.signIn) { request in
                             request.requestedScopes = [.fullName, .email]
@@ -89,7 +89,9 @@ struct AccountView: View {
                     Button("Sign Out") { confirmingSignOut = true }
                     Button("Delete Account and Data", role: .destructive) { confirmingDelete = true }
                 } footer: {
-                    Text("Deleting removes your profile and the groups you created, here and in iCloud. Groups others shared with you stay with them.")
+                    Text(AppFeatures.cloud
+                         ? "Deleting removes your profile and the groups you created, here and in iCloud. Groups others shared with you stay with them."
+                         : "Deleting removes your profile and all your groups from this iPhone.")
                 }
             }
             .scrollContentBackground(.hidden)
@@ -112,7 +114,9 @@ struct AccountView: View {
             .confirmationDialog("Sign out?", isPresented: $confirmingSignOut, titleVisibility: .visible) {
                 Button("Sign Out", role: .destructive) { account.signOut() }
             } message: {
-                Text(isGuest
+                Text(!AppFeatures.cloud
+                     ? "Your groups stay on this iPhone. You'll set up your name again next time."
+                     : isGuest
                      ? "Your groups stay on this device, but this guest profile can't be recovered. Sign in with Apple first to keep it."
                      : "Your groups stay on this device and in iCloud.")
             }

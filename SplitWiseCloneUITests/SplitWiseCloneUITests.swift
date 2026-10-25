@@ -17,7 +17,7 @@ final class SplitWiseCloneUITests: XCTestCase {
         app.launch()
 
         XCTAssertTrue(app.staticTexts["Shared expenses, settled simply."].waitForExistence(timeout: 5))
-        app.buttons["Continue as Guest"].tap()
+        app.buttons["startButton"].tap()
         let nameField = app.textFields["Your name"]
         XCTAssertTrue(nameField.waitForExistence(timeout: 5))
         // Submit with Return: a fresh simulator's keyboard intro also has a "Continue" button.
@@ -31,7 +31,7 @@ final class SplitWiseCloneUITests: XCTestCase {
         app.launchArguments = ["-uiTesting"]
         app.launch()
         XCTAssertTrue(app.staticTexts["SettleUp"].waitForExistence(timeout: 5))
-        XCTAssertTrue(app.buttons["Continue as Guest"].exists)
+        XCTAssertTrue(app.buttons["startButton"].exists)
         XCTAssertFalse(app.secureTextFields.firstMatch.exists, "No password form")
     }
 
@@ -71,10 +71,8 @@ final class SplitWiseCloneUITests: XCTestCase {
         let app = XCUIApplication()
         app.launchArguments = ["-uiTesting"]
         app.launch()
-        XCTAssertTrue(app.buttons["Continue as Guest"].waitForExistence(timeout: 5))
-        sleep(2)
-        snapshot(app, "welcome")
-        app.buttons["Continue as Guest"].tap()
+        XCTAssertTrue(app.buttons["startButton"].waitForExistence(timeout: 5))
+        app.buttons["startButton"].tap()
         XCTAssertTrue(app.textFields["Your name"].waitForExistence(timeout: 5))
         app.textFields["Your name"].typeText("Dhyan\n")
 
@@ -119,13 +117,9 @@ final class SplitWiseCloneUITests: XCTestCase {
         app.textFields["Ravi's share"].coordinate(withNormalizedOffset: CGVector(dx: 0.95, dy: 0.5)).tap()
         app.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: 4) + "100")
         XCTAssertTrue(app.staticTexts["Adds up to the total"].waitForExistence(timeout: 3))
-        sleep(1)
-        snapshot(app, "add-expense")
         app.buttons["Save"].tap()
         XCTAssertTrue(app.staticTexts["Maya pays Dhyan"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.staticTexts["Airbnb"].exists)
-        sleep(1)
-        snapshot(app, "group-detail")
 
         // Editing opens the same form, prefilled.
         app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "Dinner at Time Out")).firstMatch.tap()
@@ -134,8 +128,6 @@ final class SplitWiseCloneUITests: XCTestCase {
         app.buttons["Cancel"].tap()
 
         app.swipeUp()
-        sleep(1)
-        snapshot(app, "balances-expenses")
         app.swipeDown()
 
         // Settle everything; nothing should come back.
@@ -144,12 +136,70 @@ final class SplitWiseCloneUITests: XCTestCase {
             sleep(1)
         }
         XCTAssertTrue(app.staticTexts["All settled up"].waitForExistence(timeout: 5))
-        snapshot(app, "settled")
 
         app.navigationBars.buttons.element(boundBy: 0).tap()
         XCTAssertTrue(app.staticTexts["settled up"].waitForExistence(timeout: 5))
-        sleep(1)
+
+        app.buttons["Account"].tap()
+        XCTAssertTrue(app.buttons["Sign Out"].waitForExistence(timeout: 5))
+        app.buttons["Siri & Shortcuts"].tap()
+        XCTAssertTrue(app.navigationBars["Siri & Shortcuts"].waitForExistence(timeout: 5))
+    }
+
+    /// Captures the README screenshots from the seeded demo groups. Export with
+    /// `xcrun xcresulttool export attachments` and copy into docs/screenshots.
+    func testREADMEScreenshots() throws {
+        let app = XCUIApplication()
+        app.launchArguments = ["-uiTesting", "-demoData"]
+        app.launch()
+        XCTAssertTrue(app.buttons["startButton"].waitForExistence(timeout: 5))
+        sleep(2)
+        snapshot(app, "welcome")
+        app.buttons["startButton"].tap()
+        XCTAssertTrue(app.textFields["Your name"].waitForExistence(timeout: 5))
+        app.textFields["Your name"].typeText("Dhyan\n")
+
+        // Demo groups predate the profile, so claim "me" in each one.
+        for group in ["Ski Weekend", "Flat 4B", "Lisbon Trip"] {
+            openGroup(group, in: app)
+            let claim = app.buttons["This is me: Dhyan"]
+            XCTAssertTrue(claim.waitForExistence(timeout: 5))
+            claim.tap()
+            XCTAssertTrue(app.staticTexts["You"].waitForExistence(timeout: 5))
+            app.navigationBars.buttons.element(boundBy: 0).tap()
+        }
+        XCTAssertTrue(app.staticTexts["you owe"].waitForExistence(timeout: 5))
+        sleep(2)
         snapshot(app, "groups")
+
+        openGroup("Lisbon Trip", in: app)
+        XCTAssertTrue(app.staticTexts["Maya pays Dhyan"].waitForExistence(timeout: 5))
+        sleep(2)
+        snapshot(app, "group-detail")
+        app.swipeUp()
+        sleep(1)
+        snapshot(app, "balances-expenses")
+        app.swipeDown()
+
+        // The Core ML model picks the category icon as the title is typed.
+        app.buttons["Add Expense"].tap()
+        app.textFields["What was it for?"].tap()
+        app.typeText("Sunset boat tour")
+        app.textFields["0.00"].firstMatch.tap()
+        app.typeText("120")
+        sleep(1)
+        snapshot(app, "add-expense")
+        app.buttons["Cancel"].tap()
+        app.navigationBars.buttons.element(boundBy: 0).tap()
+
+        openGroup("Ski Weekend", in: app)
+        while app.buttons["Settle"].firstMatch.waitForExistence(timeout: 2) {
+            app.buttons["Settle"].firstMatch.tap()
+            sleep(1)
+        }
+        XCTAssertTrue(app.staticTexts["All settled up"].waitForExistence(timeout: 5))
+        snapshot(app, "settled")
+        app.navigationBars.buttons.element(boundBy: 0).tap()
 
         app.buttons["Account"].tap()
         XCTAssertTrue(app.buttons["Sign Out"].waitForExistence(timeout: 5))
@@ -159,6 +209,14 @@ final class SplitWiseCloneUITests: XCTestCase {
         XCTAssertTrue(app.navigationBars["Siri & Shortcuts"].waitForExistence(timeout: 5))
         sleep(1)
         snapshot(app, "siri")
+    }
+
+    private func openGroup(_ name: String, in app: XCUIApplication) {
+        let card = app.buttons.matching(NSPredicate(format: "label CONTAINS %@", name)).firstMatch
+        XCTAssertTrue(card.waitForExistence(timeout: 5))
+        sleep(1)
+        card.tap()
+        XCTAssertTrue(app.buttons["Add Expense"].waitForExistence(timeout: 5))
     }
 
     private func snapshot(_ app: XCUIApplication, _ name: String) {
@@ -174,6 +232,6 @@ final class SplitWiseCloneUITests: XCTestCase {
         XCTAssertTrue(app.buttons["Sign Out"].waitForExistence(timeout: 5))
         app.buttons["Sign Out"].tap()
         app.sheets.buttons["Sign Out"].firstMatch.tap()
-        XCTAssertTrue(app.buttons["Continue as Guest"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["startButton"].waitForExistence(timeout: 5))
     }
 }
