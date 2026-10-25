@@ -2,8 +2,8 @@
 //  CoreDataMapping.swift
 //  SplitWiseClone
 //
-//  Maps CD-prefixed managed objects to the plain domain structs, plus a
-//  small fetch-by-id helper shared by the ViewModels.
+//  Maps CD-prefixed managed objects to the plain domain structs, plus small
+//  fetch/insert helpers shared by the repository.
 //
 
 import CoreData
@@ -15,10 +15,19 @@ extension NSManagedObjectContext {
         request.fetchLimit = 1
         return try fetch(request).first
     }
+
+    /// Inserts a new object into the same store as `anchor`. Core Data can't
+    /// relate objects across stores, so anything added to a shared group has
+    /// to live in the shared store too.
+    func insert<T: NSManagedObject>(_ type: T.Type, alongside anchor: NSManagedObject) -> T {
+        let object = T(context: self)
+        if let store = anchor.objectID.persistentStore { assign(object, to: store) }
+        return object
+    }
 }
 
 extension CDMember {
-    var domain: Member { Member(id: id ?? UUID(), name: name ?? "") }
+    var domain: Member { Member(id: id ?? UUID(), name: name ?? "", userID: userID) }
 }
 
 extension CDExpense {
@@ -32,7 +41,8 @@ extension CDExpense {
             id: id, title: title ?? "", amount: amount?.decimalValue ?? 0,
             currencyCode: currencyCode ?? "USD",
             category: ExpenseCategory(rawValue: category ?? "") ?? .other,
-            paidBy: payer.domain, splits: splits, date: date ?? .distantPast
+            paidBy: payer.domain, splits: splits.sorted { $0.member.name < $1.member.name },
+            date: date ?? .distantPast
         )
     }
 }

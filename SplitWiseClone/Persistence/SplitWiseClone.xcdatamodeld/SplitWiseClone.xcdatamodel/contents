@@ -28,6 +28,7 @@
     <entity name="CDMember" representedClassName=".CDMember" syncable="YES" codeGenerationType="class">
         <attribute name="id" optional="YES" attributeType="UUID" usesScalarValueType="NO"/>
         <attribute name="name" optional="YES" attributeType="String"/>
+        <attribute name="userID" optional="YES" attributeType="String"/>
         <relationship name="group" optional="YES" maxCount="1" deletionRule="Nullify" destinationEntity="CDGroup" inverseName="members" inverseEntity="CDGroup"/>
         <relationship name="paymentsMade" optional="YES" toMany="YES" deletionRule="Nullify" destinationEntity="CDSettlement" inverseName="from" inverseEntity="CDSettlement"/>
         <relationship name="paymentsReceived" optional="YES" toMany="YES" deletionRule="Nullify" destinationEntity="CDSettlement" inverseName="to" inverseEntity="CDSettlement"/>

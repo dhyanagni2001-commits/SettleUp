@@ -12,6 +12,8 @@ struct NewGroupView: View {
     @State private var members: [String] = []
     @FocusState private var memberFieldFocused: Bool
 
+    /// The signed-in person, always added to new groups and linked to their account.
+    let meName: String
     let onCreate: (_ name: String, _ memberNames: [String]) -> Void
 
     var body: some View {
@@ -21,6 +23,14 @@ struct NewGroupView: View {
                     TextField("Group name", text: $groupName)
                 }
                 Section {
+                    if !meName.isEmpty {
+                        HStack(spacing: 12) {
+                            Avatar(name: meName, size: 30)
+                            Text(meName)
+                            Spacer()
+                            Text("You").font(.caption.bold()).foregroundStyle(Color.subtext)
+                        }
+                    }
                     ForEach(members, id: \.self) { name in
                         HStack(spacing: 12) {
                             Avatar(name: name, size: 30)
@@ -42,11 +52,11 @@ struct NewGroupView: View {
                         .accessibilityLabel("Add member")
                     }
                 } header: {
-                    Text("Members (\(members.count))")
+                    Text("Members (\(members.count + (meName.isEmpty ? 0 : 1)))")
                         .contentTransition(.numericText())
                 }
             }
-            .animation(.spring(response: 0.35, dampingFraction: 0.75), value: members)
+            .animation(.smooth(duration: 0.3), value: members)
             .navigationTitle("New Group")
             .navigationBarTitleDisplayMode(.inline)
             .scrollContentBackground(.hidden)
@@ -61,7 +71,7 @@ struct NewGroupView: View {
                         onCreate(trimmed(groupName), members)
                         dismiss()
                     }
-                    .disabled(trimmed(groupName).isEmpty || (members.isEmpty && trimmed(newMember).isEmpty))
+                    .disabled(trimmed(groupName).isEmpty || (members.isEmpty && trimmed(newMember).isEmpty && meName.isEmpty))
                 }
             }
         }
@@ -73,7 +83,7 @@ struct NewGroupView: View {
 
     private func addMember() {
         let name = trimmed(newMember)
-        guard !name.isEmpty, !members.contains(name) else { return }
+        guard !name.isEmpty, !members.contains(name), name != meName else { return }
         members.append(name)
         newMember = ""
         memberFieldFocused = true
@@ -81,5 +91,5 @@ struct NewGroupView: View {
 }
 
 #Preview {
-    NewGroupView(onCreate: { _, _ in })
+    NewGroupView(meName: "Dhyan", onCreate: { _, _ in })
 }

@@ -6,6 +6,7 @@
 //  view context saves or CloudKit syncs remote changes down to the local store.
 //
 
+import AppIntents
 import Combine
 import CoreData
 import Foundation
@@ -17,14 +18,15 @@ final class GroupListViewModel: ObservableObject {
     /// False until the first fetch lands; drives the skeleton placeholder.
     @Published private(set) var hasLoaded = false
 
-    let context: NSManagedObjectContext
+    let repository: ExpenseRepository
+    var context: NSManagedObjectContext { repository.context }
     private var cancellables = Set<AnyCancellable>()
 
-    init(context: NSManagedObjectContext) {
-        self.context = context
+    init(repository: ExpenseRepository) {
+        self.repository = repository
         Publishers.Merge(
             NotificationCenter.default.publisher(for: .NSPersistentStoreRemoteChange),
-            NotificationCenter.default.publisher(for: .NSManagedObjectContextDidSave, object: context)
+            NotificationCenter.default.publisher(for: .NSManagedObjectContextDidSave, object: repository.context)
         )
         .receive(on: DispatchQueue.main)
         .sink { [weak self] _ in self?.loadGroups() }
@@ -33,48 +35,47 @@ final class GroupListViewModel: ObservableObject {
         // Short beat on cold start so the skeleton → content handoff animates
         // instead of flashing (and covers the CloudKit store warming up).
         Task {
-            try? await Task.sleep(for: .milliseconds(650))
+            try? await Task.sleep(for: .milliseconds(450))
             loadGroups()
             hasLoaded = true
         }
     }
 
+    convenience init(context: NSManagedObjectContext) {
+        self.init(repository: ExpenseRepository(context: context))
+    }
+
     func loadGroups() {
-        let request = CDGroup.fetchRequest()
-        request.sortDescriptors = [NSSortDescriptor(keyPath: \CDGroup.createdAt, ascending: false)]
         do {
-            groups = try context.fetch(request).map(\.domain)
+            let fresh = try repository.groups()
+            // Siri learns group names from here, so refresh them when they change.
+            if fresh.map(\.name) != groups.map(\.name) { SettleUpShortcuts.updateAppShortcutParameters() }
+            groups = fresh
         } catch {
             errorMessage = "Couldn't load groups: \(error.localizedDescription)"
         }
     }
 
-    func addGroup(name: String, memberNames: [String]) {
-        let cdGroup = CDGroup(context: context)
-        cdGroup.id = UUID()
-        cdGroup.name = name
-        cdGroup.createdAt = Date()
-
-        for memberName in memberNames {
-            let cdMember = CDMember(context: context)
-            cdMember.id = UUID()
-            cdMember.name = memberName
-            cdMember.group = cdGroup
-        }
-        save("create group")
+    func addGroup(name: String, memberNames: [String], me: (name: String, userID: String)?) {
+        perform("create group") { try repository.createGroup(name: name, memberNames: memberNames, me: me) }
     }
 
     func deleteGroup(_ group: ExpenseGroup) {
-        guard let cdGroup = try? context.fetchOne(CDGroup.self, id: group.id) else { return }
-        context.delete(cdGroup)
-        save("delete group")
+        perform("delete group") { try repository.deleteGroup(id: group.id) }
     }
 
-    private func save(_ action: String) {
+    func relinkUser(from oldID: String, to newID: String) throws {
+        try repository.relinkUser(from: oldID, to: newID)
+    }
+
+    func deleteAllData(for userID: String?) {
+        perform("delete your data") { try repository.deleteAllData(for: userID) }
+    }
+
+    private func perform(_ action: String, _ work: () throws -> Void) {
         do {
-            try context.save()
+            try work()
         } catch {
-            context.rollback()
             errorMessage = "Couldn't \(action): \(error.localizedDescription)"
         }
     }

@@ -24,6 +24,7 @@ Relationships: `members` (to-many Member), `expenses` (to-many Expense)
 |---|---|---|
 | id | UUID | |
 | name | String | |
+| userID | String | optional; account id of the person this member is ("me") |
 Relationships: `group` (to-one Group), `paidExpenses` (to-many Expense), `splits` (to-many ExpenseSplit)
 
 ### Expense

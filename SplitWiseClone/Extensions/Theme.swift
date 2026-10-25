@@ -23,13 +23,13 @@ extension ExpenseCategory {
 
     var tint: Color {
         switch self {
-        case .food: .orange
-        case .transport: .blue
-        case .lodging: .indigo
-        case .entertainment: .pink
-        case .utilities: .yellow
-        case .groceries: .green
-        case .other: .gray
+        case .food: Color(hex: 0xB0794A)
+        case .transport: Color(hex: 0x4F7393)
+        case .lodging: Color(hex: 0x6A6890)
+        case .entertainment: Color(hex: 0x8E6478)
+        case .utilities: Color(hex: 0xA08F4E)
+        case .groceries: Color(hex: 0x5A8A63)
+        case .other: Color(hex: 0x6B7075)
         }
     }
 }
@@ -39,7 +39,7 @@ extension Color {
         self.init(red: Double((hex >> 16) & 0xFF) / 255, green: Double((hex >> 8) & 0xFF) / 255, blue: Double(hex & 0xFF) / 255)
     }
 
-    // Spotify-inspired palette.
+    // Calm dark palette with a single green accent.
     static let brand = Color(hex: 0x1ED760)
     static let base = Color(hex: 0x121212)
     static let card = Color(hex: 0x1C1C1C)
@@ -47,9 +47,10 @@ extension Color {
     static let subtext = Color(hex: 0xB3B3B3)
     static let negative = Color(hex: 0xF15E6C)
 
-    /// Deterministic across launches (unlike `hashValue`). Muted, genre-tile style hues.
+    /// Deterministic across launches (unlike `hashValue`). Muted, low-saturation hues
+    /// that sit quietly next to the green accent.
     static func stable(for name: String) -> Color {
-        let palette: [Color] = [0xE13300, 0x1E3264, 0x8D67AB, 0xE8115B, 0x148A08, 0xBA5D07, 0x477D95, 0xDC148C, 0x27856A, 0x503750].map(Color.init(hex:))
+        let palette: [Color] = [0x3E6B5A, 0x3F5A7A, 0x5B5878, 0x6E5A4A, 0x4A6870, 0x6B6450, 0x4F5D6B, 0x5E6B4E].map(Color.init(hex:))
         let seed = name.unicodeScalars.reduce(0) { $0 &+ Int($1.value) }
         return palette[seed % palette.count]
     }

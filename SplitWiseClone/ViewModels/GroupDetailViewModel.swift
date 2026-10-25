@@ -20,112 +20,72 @@ final class GroupDetailViewModel: ObservableObject {
     @Published private(set) var settlements: [Settlement] = []
     @Published var errorMessage: String?
 
-    private let context: NSManagedObjectContext
+    let userID: String?
+    var me: Member? { group.me(userID) }
+
+    private let repository: ExpenseRepository
     private var cancellables = Set<AnyCancellable>()
 
-    init(groupID: UUID, context: NSManagedObjectContext) {
-        self.context = context
-        self.group = (try? context.fetchOne(CDGroup.self, id: groupID))?.domain
+    init(groupID: UUID, repository: ExpenseRepository, userID: String?) {
+        self.repository = repository
+        self.userID = userID
+        self.group = (try? repository.group(id: groupID))
             ?? ExpenseGroup(id: groupID, name: "", members: [], expenses: [])
         recompute()
 
-        NotificationCenter.default
-            .publisher(for: .NSPersistentStoreRemoteChange)
-            .receive(on: DispatchQueue.main)
-            .sink { [weak self] _ in self?.reload() }
-            .store(in: &cancellables)
+        Publishers.Merge(
+            NotificationCenter.default.publisher(for: .NSPersistentStoreRemoteChange),
+            NotificationCenter.default.publisher(for: .NSManagedObjectContextDidSave, object: repository.context)
+        )
+        .receive(on: DispatchQueue.main)
+        .sink { [weak self] _ in self?.reload() }
+        .store(in: &cancellables)
+    }
+
+    convenience init(groupID: UUID, context: NSManagedObjectContext) {
+        self.init(groupID: groupID, repository: ExpenseRepository(context: context), userID: nil)
     }
 
     private func reload() {
-        if let cdGroup = try? context.fetchOne(CDGroup.self, id: group.id) {
-            group = cdGroup.domain
+        if let fresh = try? repository.group(id: group.id), fresh != group {
+            group = fresh
         }
     }
 
     private func recompute() {
-        let ledger = group.expenses + group.payments.map(DebtSimplifier.ledgerEntry)
-        let net = DebtSimplifier.netBalances(for: ledger)
-        balances = group.members
-            .map { MemberBalance(member: $0, amount: net[$0] ?? 0) }
-            .sorted { $0.amount > $1.amount }
-        settlements = DebtSimplifier.simplify(expenses: ledger)
-            .sorted { $0.amount > $1.amount }
+        balances = group.balances
+        settlements = group.settlementPlan
     }
 
-    func addExpense(_ expense: Expense) {
-        do {
-            guard let cdGroup = try context.fetchOne(CDGroup.self, id: group.id),
-                  let cdPaidBy = try context.fetchOne(CDMember.self, id: expense.paidBy.id)
-            else {
-                errorMessage = "Couldn't find this group or payer in the store."
-                return
-            }
-
-            let cdExpense = CDExpense(context: context)
-            cdExpense.id = expense.id
-            cdExpense.title = expense.title
-            cdExpense.amount = expense.amount as NSDecimalNumber
-            cdExpense.currencyCode = expense.currencyCode
-            cdExpense.category = expense.category.rawValue
-            cdExpense.date = expense.date
-            cdExpense.group = cdGroup
-            cdExpense.paidBy = cdPaidBy
-
-            for split in expense.splits {
-                guard let cdSplitMember = try context.fetchOne(CDMember.self, id: split.member.id) else { continue }
-                let cdSplit = CDExpenseSplit(context: context)
-                cdSplit.id = split.id
-                cdSplit.ownedAmount = split.owedAmount as NSDecimalNumber
-                cdSplit.expense = cdExpense
-                cdSplit.member = cdSplitMember
-            }
-            try save()
-        } catch {
-            errorMessage = "Couldn't save expense: \(error.localizedDescription)"
-        }
+    func saveExpense(_ expense: Expense) {
+        perform("save expense") { try repository.save(expense, in: group.id) }
     }
 
     func deleteExpense(_ expense: Expense) {
-        do {
-            guard let cdExpense = try context.fetchOne(CDExpense.self, id: expense.id) else { return }
-            context.delete(cdExpense)
-            try save()
-        } catch {
-            errorMessage = "Couldn't delete expense: \(error.localizedDescription)"
-        }
+        perform("delete expense") { try repository.deleteExpense(id: expense.id) }
     }
 
     func markSettled(_ settlement: Settlement) {
-        do {
-            guard let cdGroup = try context.fetchOne(CDGroup.self, id: group.id),
-                  let cdFrom = try context.fetchOne(CDMember.self, id: settlement.from.id),
-                  let cdTo = try context.fetchOne(CDMember.self, id: settlement.to.id)
-            else {
-                errorMessage = "Couldn't find the members for this payment."
-                return
-            }
-
-            let cdSettlement = CDSettlement(context: context)
-            cdSettlement.id = UUID()
-            cdSettlement.amount = settlement.amount as NSDecimalNumber
-            cdSettlement.currencyCode = settlement.currencyCode
-            cdSettlement.date = Date()
-            cdSettlement.from = cdFrom
-            cdSettlement.to = cdTo
-            cdSettlement.group = cdGroup
-            try save()
-        } catch {
-            errorMessage = "Couldn't mark settled: \(error.localizedDescription)"
-        }
+        perform("record payment") { try repository.recordPayment(settlement, in: group.id) }
     }
 
-    private func save() throws {
+    func claim(_ member: Member) {
+        guard let userID else { return }
+        perform("update group") { try repository.claimMember(member.id, in: group.id, userID: userID) }
+    }
+
+    func addMember(named name: String) {
+        let trimmed = name.trimmingCharacters(in: .whitespaces)
+        guard !trimmed.isEmpty else { return }
+        perform("add member") { try repository.addMember(named: trimmed, to: group.id) }
+    }
+
+    private func perform(_ action: String, _ work: () throws -> Void) {
         do {
-            try context.save()
+            try work()
             reload()
         } catch {
-            context.rollback()
-            throw error
+            errorMessage = "Couldn't \(action): \(error.localizedDescription)"
         }
     }
 }

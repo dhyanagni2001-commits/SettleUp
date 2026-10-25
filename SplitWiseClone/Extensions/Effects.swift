@@ -22,8 +22,8 @@ struct AppBackground: View {
             let t = timeline.date.timeIntervalSinceReferenceDate
             let reach = 0.42 + 0.06 * sin(t * 0.8)
             LinearGradient(stops: [
-                .init(color: tint.opacity(0.75), location: 0),
-                .init(color: tint.opacity(0.25), location: reach * 0.6),
+                .init(color: tint.opacity(0.45), location: 0),
+                .init(color: tint.opacity(0.12), location: reach * 0.6),
                 .init(color: .base, location: reach),
             ], startPoint: .top, endPoint: .bottom)
         }
@@ -42,20 +42,19 @@ extension View {
             .background(Color.card.opacity(0.92), in: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
     }
 
-    /// Items scale, tilt, and un-blur in as they scroll into the viewport.
+    /// Items gently scale and fade in as they scroll into the viewport.
+    /// Kept to opacity + scale (no blur) so long lists scroll at full frame rate.
     func lazyReveal() -> some View {
-        scrollTransition(.animated(.spring(response: 0.5, dampingFraction: 0.75))) { content, phase in
+        scrollTransition(.animated(.smooth(duration: 0.35))) { content, phase in
             content
-                .opacity(phase.isIdentity ? 1 : 0.2)
-                .scaleEffect(phase.isIdentity ? 1 : 0.88)
-                .blur(radius: phase.isIdentity ? 0 : 6)
-                .rotation3DEffect(.degrees(phase.value * 18), axis: (x: 1, y: 0, z: 0), perspective: 0.6)
+                .opacity(phase.isIdentity ? 1 : 0.4)
+                .scaleEffect(phase.isIdentity ? 1 : 0.96)
         }
     }
 
-    /// One-shot entrance: rises, fades, and un-blurs after `index`-based delay.
+    /// One-shot entrance: rises and fades in after an `index`-based delay.
     func staggeredAppear(_ index: Int) -> some View {
-        modifier(StaggeredAppear(delay: Double(index) * 0.07))
+        modifier(StaggeredAppear(delay: Double(index) * 0.05))
     }
 
     func shimmer() -> some View { modifier(Shimmer()) }
@@ -68,11 +67,9 @@ private struct StaggeredAppear: ViewModifier {
     func body(content: Content) -> some View {
         content
             .opacity(visible ? 1 : 0)
-            .offset(y: visible ? 0 : 40)
-            .blur(radius: visible ? 0 : 10)
-            .scaleEffect(visible ? 1 : 0.94)
+            .offset(y: visible ? 0 : 16)
             .onAppear {
-                withAnimation(.spring(response: 0.6, dampingFraction: 0.75).delay(delay)) { visible = true }
+                withAnimation(.smooth(duration: 0.5).delay(delay)) { visible = true }
             }
     }
 }
@@ -121,7 +118,7 @@ struct ConfettiBurst: View {
         let speed = Double.random(in: 350...850)
         let spin = Double.random(in: -12...12)
         let size = Double.random(in: 8...16)
-        let color: Color = [.brand, .brand, .white, Color(hex: 0x169C46), Color(hex: 0xB3B3B3)].randomElement()!
+        let color: Color = [.brand, .brand, .white, Color(hex: 0x169C46), Color(hex: 0xB3B3B3)].randomElement() ?? .brand
     }
 
     @State private var pieces: [Piece] = []

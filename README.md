@@ -1,128 +1,196 @@
 # SettleUp — Native iOS Expense Splitting App
 
-A native iOS expense-splitting app built with **SwiftUI**, **MVVM + Combine**,
-**Core Data + CloudKit sync**, and an on-device **CoreML** classifier for
-automatic expense categorization. The core algorithmic piece is a
-**debt-simplification (min-transaction graph reduction)** engine that
-collapses a group's tangled IOUs down to the smallest set of payments needed
-to settle up.
+A native iOS app for tracking shared expenses and settling group balances,
+built with **SwiftUI**, **MVVM + Combine**, **Core Data + CloudKit** (sync and
+group sharing), **Sign in with Apple**, and **App Intents** so you can add
+expenses by talking to Siri, without opening the app.
+
+> "Hey Siri, add an expense to Lisbon Trip in SettleUp."
+
+The core algorithmic piece is a **debt-simplification (min-transaction graph
+reduction)** engine that collapses a group's tangled IOUs down to the
+smallest set of payments needed to settle up.
 
 <p align="center">
-  <img src="docs/screenshots/groups.png" width="19%" alt="Groups list">
-  <img src="docs/screenshots/group-detail.png" width="19%" alt="Group detail with settle-up plan">
-  <img src="docs/screenshots/balances-expenses.png" width="19%" alt="Balances and expenses">
-  <img src="docs/screenshots/add-expense.png" width="19%" alt="Add expense with auto-categorization">
-  <img src="docs/screenshots/settled.png" width="19%" alt="All settled up">
+  <img src="docs/screenshots/welcome.png" width="24%" alt="Welcome and sign in">
+  <img src="docs/screenshots/groups.png" width="24%" alt="Groups with your balance">
+  <img src="docs/screenshots/group-detail.png" width="24%" alt="Group detail with settle-up plan">
+  <img src="docs/screenshots/add-expense.png" width="24%" alt="Custom split that adds up to the cent">
+</p>
+<p align="center">
+  <img src="docs/screenshots/balances-expenses.png" width="24%" alt="Balances and expenses">
+  <img src="docs/screenshots/settled.png" width="24%" alt="All settled up">
+  <img src="docs/screenshots/account.png" width="24%" alt="Account">
+  <img src="docs/screenshots/siri.png" width="24%" alt="Siri and Shortcuts help">
 </p>
 
 ## Highlights
 
 | | |
 |---|---|
+| **Hands-free entry** | Add expenses, check balances, and hear settlement plans through Siri |
 | **75.4% fewer payments** | 26,217 → 6,438 transfers across 1,000 simulated groups |
-| **100% correct** | 1,000 / 1,000 groups zeroed to the cent; 10,000 / 10,000 splits exact |
-| **~53 ms** | Settlement plan for 50 members × 5,000 expenses |
-| **13 / 13 tests passing** | Unit, randomized benchmark, and end-to-end UI tests |
-| **~2,000 lines of Swift** | App + tests, zero third-party dependencies |
+| **Exact to the cent** | 1,000 / 1,000 groups zeroed; 10,000 / 10,000 splits exact; mismatched splits are rejected |
+| **~48 ms** | Settlement plan for 50 members × 5,000 expenses |
+| **35 / 35 tests passing** | Unit, Siri intent, randomized benchmark, and end-to-end UI tests |
+| **~4,400 lines of Swift** | App + tests, zero third-party dependencies |
 
 ## Features
 
-- **Groups & members**: create groups, add members, long-press to delete.
-- **Expenses**: equal splits among any subset of members, exact to the cent
-  (leftover cents are distributed so splits always sum to the total).
-- **Live auto-categorization**: the category icon updates as you type the title
-  (keyword heuristic today; CoreML model slot ready).
-- **Settle up**: minimal payment plan; recorded payments are persisted and
-  offset balances, so settled debts never reappear.
-- **Offline-first sync**: Core Data is the source of truth, with CloudKit
-  mirroring via `NSPersistentCloudKitContainer`.
-- **Spotify-inspired UI**: near-black theme, green accent, playlist-style
-  header that picks up the group's color.
-- **Motion**: shimmer skeleton on load, staggered entrances, scroll-driven
-  reveal (scale/tilt/blur), zoom transition into a group, spring-animated
-  balance bars, rolling numbers, confetti and haptics on settle.
+- **Sign in with Apple or continue as a guest.** No email/password form. After
+  signing in you pick a display name and optional photo. Guests keep all their
+  groups when they sign in later.
+- **Account screen**: edit your profile, sign out, or delete your account and data.
+- **Groups & members**: create groups (you're added automatically), add people,
+  and tell SettleUp which member is you in older or shared groups.
+- **Expenses**: split equally or by custom amounts, in any currency, with a date.
+  Tap an expense to edit it. Leftover cents are assigned so equal splits always
+  sum to the total, and custom splits that don't add up can't be saved.
+- **Your balance everywhere**: "you owe" / "you're owed" on every group and an
+  overall total on the groups screen.
+- **Settle up**: minimal payment plan; recorded payments offset balances, so
+  settled debts never reappear.
+- **Group sharing**: invite other iCloud users to a group through the system
+  sharing sheet (CloudKit shares). Signing in and sharing are separate: Sign in
+  with Apple identifies you to SettleUp, CloudKit sharing lets people collaborate.
+- **Offline-first sync**: Core Data is the source of truth, mirrored to CloudKit
+  via `NSPersistentCloudKitContainer`.
+- **Live auto-categorization**: the category icon updates as you type the title.
+- **Calm, smooth UI**: dark theme with a single green accent and muted colors;
+  light spring animations (staggered entrances, zoom into a group, rolling
+  numbers, animated balance bars, confetti and haptics on settle) tuned to keep
+  scrolling at full frame rate.
 
-## Why this exists
+## Siri
 
-Splitting expenses in a group (a trip, a shared apartment, a dinner) quickly
-produces a web of who-owes-whom. Rather than showing every individual debt,
-this app nets everyone's balance and computes the minimal set of payments
-that zeroes the group out — the same problem LeetCode calls "Optimal Account
-Balancing."
+SettleUp has **no microphone button**. You start with "Hey Siri"; Siri handles
+the voice interaction and passes the request to the app's App Intents.
+
+| Action | Try saying |
+|---|---|
+| Add an expense | "Add an expense to Lisbon Trip in SettleUp", "Add a SettleUp expense" |
+| Check my balance | "Check my balance in SettleUp", "What do I owe in SettleUp" |
+| Settlement plan | "Who owes who in Lisbon Trip in SettleUp" |
+| Open a group | "Open Lisbon Trip in SettleUp" |
+
+How the add-expense flow works:
+
+1. Siri resolves the group (spoken group names are registered with Siri) and
+   asks for anything missing: amount, what it was for, who paid.
+2. People are matched against that group only. If a name could be two people
+   ("Maya" vs "Maya Patel"), Siri asks which one; "me" means your linked member.
+3. The amount, currency, payer, and participants are validated, then the split
+   is computed with the **same `DebtSimplifier` code the form uses**.
+4. If you didn't name anyone, Siri confirms "split equally between everyone?"
+   before saving instead of assuming.
+5. For custom amounts, Siri opens SettleUp with the expense pre-filled for review.
+6. Siri confirms: *"Added Dinner to Lisbon Trip for $84.00, split equally
+   between you, Maya, and Ravi."*
+
+App Shortcut phrases can only contain one spoken parameter (the group), so the
+other details are collected as Siri follow-up questions rather than parsed
+from a single long sentence.
 
 ## Architecture
 
 ```
 SplitWiseClone/
-├── App/                  App entry point, environment wiring
-├── Models/                Plain Swift domain types (Group, Member, Expense, Settlement)
-├── ViewModels/            ObservableObject classes — Combine-driven state
-├── Views/                 SwiftUI views
-├── Persistence/           Core Data + CloudKit stack
-├── ML/                    On-device CoreML expense categorizer
-├── Algorithms/            DebtSimplifier — the min-transaction reduction engine
-└── Extensions/            Theme (palette, avatars) and Effects (animations)
+├── App/                  Entry point, root onboarding switch, router, scene delegate (share acceptance)
+├── Account/              AccountStore: Sign in with Apple, guest mode, profile
+├── Models/               Domain types (Group, Member, Expense, Settlement) and ExpenseValidator
+├── ViewModels/           ObservableObject classes — Combine-driven state
+├── Views/                SwiftUI screens (Account/ holds welcome, profile, account, Siri help)
+├── Intents/              App Intents, App Entities, and App Shortcuts for Siri
+├── Persistence/          Core Data + CloudKit stack, ExpenseRepository (the single write path)
+├── ML/                   On-device expense categorizer
+├── Algorithms/           DebtSimplifier — the min-transaction reduction engine
+└── Extensions/           Theme (palette, avatars) and Effects (animations)
 
-SplitWiseCloneTests/       XCTest unit + benchmark tests (algorithm, categorizer)
-SplitWiseCloneUITests/     End-to-end UI test (create → add expense → settle)
+SplitWiseCloneTests/      Unit, Siri intent, and benchmark tests
+SplitWiseCloneUITests/    End-to-end UI tests (onboarding → group → expenses → settle → account)
 ```
 
 **Pattern:** MVVM. Views are declarative SwiftUI and hold no business logic;
-`ObservableObject` ViewModels own state and expose it via `@Published`
-properties; Combine pipelines react to Core Data's remote-change
-notifications so the UI updates automatically when CloudKit sync brings in
-changes from another device.
+ViewModels own state and expose it via `@Published`; Combine pipelines react
+to Core Data saves and CloudKit remote-change notifications.
+
+**One write path.** `ExpenseRepository` is used by both the ViewModels and the
+App Intents. It validates every expense with `ExpenseValidator` (positive
+amount, at most two decimals, known ISO currency, payer and participants in
+the group, splits summing exactly to the total) before saving, so an expense
+dictated to Siri is stored exactly like one typed into the form.
+
+**Who is "me".** Each member has an optional `userID`. Whoever creates a group
+is linked automatically; in other groups you pick yourself once. The link
+syncs with the group, so each collaborator in a shared group sees their own
+balance.
 
 Core Data entities are prefixed `CD` (`CDGroup`, `CDMember`, `CDExpense`,
 `CDExpenseSplit`, `CDSettlement`) to avoid colliding with the plain Swift
-domain structs of the same name in `Models/DomainModels.swift`.
+domain structs in `Models/DomainModels.swift`.
 
 ## Core Data + CloudKit
 
-Persistence uses `NSPersistentCloudKitContainer`. The local SQLite store is
-always the source of truth — every read/write hits it first — so the app is
-fully usable offline. CloudKit sync catches up in the background whenever
-connectivity returns. The `.xcdatamodeld` is checked in at
-`SplitWiseClone/Persistence/SplitWiseClone.xcdatamodeld`.
+`PersistenceController` uses `NSPersistentCloudKitContainer` with two stores:
+
+- **Private** (the original store file, so existing data survives upgrades):
+  your own groups, mirrored to your private CloudKit database.
+- **Shared**: groups other iCloud users shared with you.
+
+New expenses are always inserted into the same store as their group, since
+Core Data can't relate objects across stores. The local SQLite store is the
+source of truth, so the app is fully usable offline and sync catches up later.
 
 Known typo to be aware of: `CDExpenseSplit`'s amount field is named
-`ownedAmount` (not `owedAmount`) in the schema — code that reads/writes it
-uses the field as spelled.
+`ownedAmount` (not `owedAmount`) in the schema.
+
+## Accounts and privacy
+
+Sign in with Apple gives SettleUp a stable user identifier; the app never sees
+or stores an Apple password. Only the identifier, display name, optional email,
+and optional profile photo are kept on the device. Deleting your account
+removes your profile and the groups you created (locally and, through sync,
+in iCloud); groups other people shared with you stay with them. Revoking the
+Apple token on deletion needs a server and isn't implemented.
 
 ## On-device ML
 
-`ExpenseCategorizer` wraps a CoreML text classifier trained with Apple
-CreateML on a small labeled dataset of expense titles → categories. Inference
-runs fully on-device; no expense data is ever sent to an external API. Until
-the trained `.mlmodel` is dropped into `ML/`, it falls back to a keyword
-heuristic so the rest of the app builds and runs. See the TODO in
-`ExpenseCategorizer.swift` for the CreateML training steps.
+`ExpenseCategorizer` wraps a CoreML text classifier slot. Inference runs fully
+on-device. Until a trained `.mlmodel` is dropped into `ML/`, it falls back to
+a keyword heuristic. See the TODO in `ExpenseCategorizer.swift` for the
+CreateML training steps.
 
 ## Debt simplification
 
 `Algorithms/DebtSimplifier.swift` nets every member's balance per currency,
 then greedily matches the largest creditor against the largest debtor until
 all balances are zero. Multi-currency debts are **never** netted against each
-other (that would require a live FX rate). Covered by
-`DebtSimplifierTests.swift`, including rounding-to-cents and multi-currency
-isolation cases.
+other (that would require a live FX rate).
 
 ## Requirements
 
 - Xcode 26+ (Xcode 27 runs simulators in **DeviceHub**, which replaced Simulator.app)
-- iOS 26.5 deployment target (uses `NavigationStack` zoom transitions,
-  `scrollTransition`, `phaseAnimator`, `symbolEffect`, `sensoryFeedback`)
-- An Apple Developer account with iCloud/CloudKit capability enabled if you
-  want to test sync (not required to build/run locally)
+- iOS 26.5 deployment target
+- An Apple Developer account for Sign in with Apple, iCloud sync, and sharing
+  (not needed to build, run as a guest, and run the tests)
 
 ## Setup
 
 1. Clone the repo and open `SplitWiseClone.xcodeproj` in Xcode.
-2. Select an iOS Simulator as the run destination (not "My Mac" — several
-   view modifiers are iOS-only).
-3. Build and run. The app works fully offline even before CloudKit
-   entitlements are configured — sync just won't do anything until they are.
-4. Optional: add `-demoData` under *Edit Scheme → Run → Arguments* to launch
+2. Select an iOS Simulator as the run destination (not "My Mac").
+3. Build and run. Choose **Continue as Guest** to use the app with no account
+   setup; everything works offline.
+4. For Sign in with Apple, iCloud sync, and group sharing, open
+   *Signing & Capabilities* for the `SplitWiseClone` target with your team
+   selected and make sure these are enabled (they're declared in
+   `SplitWiseClone/SplitWiseClone.entitlements`):
+   - Sign in with Apple
+   - iCloud → CloudKit, container `iCloud.com.dhyan.SplitWiseClone`
+     (change it in `PersistenceController.cloudKitContainerID` if you use your own)
+   - Push Notifications and Background Modes → Remote notifications (for sync)
+5. Sharing and Siri voice requests need real devices signed in to iCloud;
+   group sharing needs two different iCloud accounts.
+6. Optional: add `-demoData` under *Edit Scheme → Run → Arguments* to launch
    with a seeded "Lisbon Trip" group in an in-memory store.
 
 ## Testing
@@ -130,34 +198,44 @@ isolation cases.
 ```bash
 xcodebuild test \
   -scheme SplitWiseClone \
-  -destination 'platform=iOS Simulator,name=iPhone 17 Pro'
+  -destination 'platform=iOS Simulator,name=iPhone 17 Pro' \
+  -parallel-testing-enabled NO
 ```
 
-Or `Cmd+U` in Xcode. 13 tests across three suites:
+Or `Cmd+U` in Xcode. Tests always run against an in-memory store and
+throwaway account storage, never your real data. 35 tests across these suites:
 
-- `DebtSimplifierTests`: core reduction logic, rounding to cents, an
-  already-settled group, multi-currency isolation.
+- `DebtSimplifierTests`: reduction logic, rounding to cents, already-settled
+  groups, multi-currency isolation.
 - `DebtSimplifierBenchmarkTests`: seeded randomized simulations (see
   [Benchmarks](#benchmarks)).
-- `ExpenseCategorizerTests` and `SplitWiseCloneUITests`: the UI test drives the
-  full flow (create group → add expense → settle → "All settled up").
+- `ExpenseRepositoryTests`: exact-cent validation, rejected bad amounts,
+  currencies and strangers, editing, recorded payments, "me" linking,
+  guest → Apple relinking, account deletion.
+- `SiriIntentTests`: runs the App Intents directly — "$84 dinner split between
+  me, Maya and Ravi", leftover cents, explicit payer, invalid amounts, people
+  from other groups, asking who paid instead of guessing, ambiguous names,
+  balance/settlement-plan/open-group intents.
+- `NameMatcherTests`, `ExpenseCategorizerTests`.
+- `SplitWiseCloneUITests`: the full journey (welcome → guest → profile → create
+  group → equal expense → custom split that doesn't add up is caught → edit →
+  settle → account → Siri help), plus sign-out and the sign-in options. The
+  journey test attaches the screenshots used in this README.
 
 ## Status / TODOs
 
-- [x] `.xcdatamodeld` created; `GroupListViewModel`/`GroupDetailViewModel`
-      wired to real `NSFetchRequest`s and saves.
-- [x] Create group, add expense, compute balances/settlements, mark settled
-      all persist to Core Data.
-- [x] `CDSettlement.date` records when a payment was made.
-- [x] Recorded payments are folded into the ledger, so settled debts don't
-      reappear after new expenses are added.
-- [x] UI tests (end-to-end create → add → settle flow).
-- [x] App icon, animated Spotify-style UI.
-- [x] Delete groups and expenses (cascade deletes in the model).
+- [x] Create groups, add/edit/delete expenses, balances, settlement plan,
+      recorded payments; all persisted to Core Data.
+- [x] Custom (non-equal) splits, currency and date on expenses.
+- [x] Sign in with Apple, guest mode, profile setup, account screen
+      (edit, sign out, delete account and data).
+- [x] CloudKit private + shared stores; invite people to a group.
+- [x] Siri: add expense, check balance, settlement plan, open group.
+- [x] Unit, Siri intent, and end-to-end UI tests.
+- [ ] Verify sharing and Siri voice flows on physical devices.
+- [ ] Revoke the Sign in with Apple token on account deletion (needs a server).
 - [ ] Train and drop in the CreateML expense-category `.mlmodel`.
-- [ ] Custom (non-equal) split entry in `AddExpenseView`.
-- [ ] Login / auth — not started, no user model exists yet.
-- [ ] Launch screen.
+- [ ] Re-enable CI (`.github/workflows-disabled/`) on a runner with Xcode 26+.
 - [ ] Settlement history view.
 
 ## License
@@ -177,7 +255,6 @@ Measured by `SplitWiseCloneTests/DebtSimplifierBenchmarkTests.swift`
 | Avg payments per group | 26.2 → 6.4 |
 | Groups fully zeroed after applying the plan | 1,000 / 1,000 (0¢ residual) |
 | Equal splits summing exactly to the cent | 10,000 / 10,000 |
-| 50 members × 5,000 expenses simplify time | ~53–58 ms median (varies by run) |
+| 50 members × 5,000 expenses simplify time | ~48–58 ms median (varies by run) |
 
-Run them with `xcodebuild test -scheme SplitWiseClone -destination 'platform=iOS Simulator,name=iPhone 17 Pro'`;
-results print as `METRIC …` lines in the test log.
+Results print as `METRIC …` lines in the test log.
