@@ -110,8 +110,8 @@ SplitWiseClone/
 ├── Algorithms/           DebtSimplifier — the min-transaction reduction engine
 └── Extensions/           Theme (palette, avatars) and Effects (animations)
 
-TrainingData/             Dataset generator, hand-written evaluation set, Create ML training script
-SplitWiseCloneTests/      Unit, Siri intent, Core ML, and benchmark tests
+TrainingData/             Dataset generator and Create ML training script
+SplitWiseCloneTests/      Unit, Siri intent, Core ML, and benchmark tests, plus the hand-written evaluation set
 SplitWiseCloneUITests/    End-to-end UI tests (onboarding → group → expenses → settle → account)
 ```
 
@@ -252,8 +252,13 @@ xcodebuild test \
   -parallel-testing-enabled NO
 ```
 
-Or `Cmd+U` in Xcode. Tests always run against an in-memory store and
-throwaway account storage, never your real data. 37 tests across these suites:
+Or `Cmd+U` in Xcode. To run them on a connected iPhone instead, pick it as
+the destination in Xcode or use `-destination 'platform=iOS,name=<your iPhone>'`.
+The Core ML evaluation set (`evaluation.csv`) is bundled into the test target,
+so the categorizer tests work on a device too, not just the simulator.
+
+Tests always run against an in-memory store and throwaway account storage,
+never your real data. 37 tests across these suites:
 
 - `DebtSimplifierTests`: reduction logic, rounding to cents, already-settled
   groups, multi-currency isolation.
@@ -291,7 +296,7 @@ throwaway account storage, never your real data. 37 tests across these suites:
       dataset and held-out evaluation.
 - [x] Siri: add expense, check balance, settlement plan, open group.
 - [x] Unit, Siri intent, and end-to-end UI tests.
-- [ ] Verify Siri voice flows on a physical iPhone.
+- [x] Verify Siri voice flows on a physical iPhone.
 - [ ] Paid build: verify sharing on devices; revoke the Sign in with Apple
       token on account deletion (needs a server).
 - [ ] Improve the category model with real expense titles.
